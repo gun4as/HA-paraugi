@@ -1,0 +1,97 @@
+esphome:
+  name: meteo-station
+  platform: esp8266
+  board: d1_mini
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+   password: !secret api_password
+ 
+ota:
+  password: !secret ota_password
+  
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  ap:
+    ssid: "Meteo Station Fallback Hotspot"
+    password: "dhansIgDlBOI"
+    
+i2c:
+     sda: SDA
+     scl: SCL
+     scan: false
+     frequency: 200kHz
+     
+sensor:
+  - platform: wifi_signal
+    name: "Meteo WiFi Signal"
+    update_interval: 60s
+    
+  - platform: uptime
+    name: meteo_uptime
+    force_update: false
+    unit_of_measurement: s
+    icon: mdi:timer
+    
+    
+  - platform: dht
+    pin: D4
+    model: AM2302
+    temperature:
+      name: "Meteo Temperature"
+    humidity:
+      name: "Meteo Humidity"
+      id: am2302_humidity
+    update_interval: 60s
+   
+  - platform: bmp280
+    address: 0x77
+    update_interval: 60s
+    temperature:
+      name: "BMP280 Temperature"
+      id: bmp280_temperature
+      oversampling: 16x
+    pressure:
+      name: "BMP280 Pressure"
+      id: bmp280_pressure
+      oversampling: 16x
+      
+  - platform: template
+    name: "Absolute Humidity"
+    unit_of_measurement: grams/m^3
+    lambda: |-
+      const float mw = 18.01534;    // molar mass of water g/mol
+      const float r = 8.31447215;   // Universal gas constant J/mol/K
+      return (6.112 * powf(2.718281828, (17.67 * id(bmp280_temperature).state) /
+        (id(bmp280_temperature).state + 243.5)) * id(am2302_humidity).state * mw) /
+        ((273.15 + id(bmp280_temperature).state) * r); // in grams/m^3
+    accuracy_decimals: 2
+    update_interval: 60s
+    
+  - platform: template
+    name: "Equivalent sea level pressure"
+    unit_of_measurement:  hPa
+    lambda: |-
+      const float STANDARD_ALTITUDE = 120; // in meters, see note
+      return id(bmp280_pressure).state / powf(1 - ((0.0065 * STANDARD_ALTITUDE) /
+        (id(bmp280_temperature).state + (0.0065 * STANDARD_ALTITUDE) + 273.15)), 5.257); // in hPa
+    update_interval: 60s
+ 
+ - platform: adc
+    pin: A0
+    name: "Smoke Sensor" 
+    update_interval: 60s               
+    filters:
+      - multiply: 100
+    icon: "mdi:percent"  
+
+  - platform: tsl2561
+    name: "TSL2561 Ambient Light"
+    address: 0x39
+    update_interval: 60s
+ 
